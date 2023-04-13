@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "include/api_handler.h"
+#include "include/weather.h"
 
 int main(int, char**) {
-    Handler handler("config.omfl");
-    handler.Request();
+    Forecaster forecaster;
+    forecaster.Run();
 }

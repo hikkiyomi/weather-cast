@@ -5,8 +5,11 @@
 #include <cpr/cpr.h>
 #include <nlohmann/json.hpp>
 
+#include <any>
 #include <filesystem>
 #include <cinttypes>
+#include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -16,6 +19,20 @@ constexpr float            kUndefinedLongitude   = -100;
 constexpr std::string_view kUndefinedCity        = "UndefinedCity";
 constexpr uint16_t         kDefaultForecastDays  = 4;
 constexpr uint32_t         kDoNotUpdateFrequency = 0;
+
+struct Weather {
+    std::optional<float> temperature;
+    std::optional<float> apparent_temperature;
+    std::optional<uint16_t> precipitation_probability;
+    std::optional<float> precipitation;
+    std::optional<uint8_t> weathercode;
+    std::optional<uint16_t> visibility;
+    std::optional<float> wind_speed;
+    std::optional<uint16_t> wind_direction;
+};
+
+using WeatherData = std::map<std::string, std::map<uint8_t, Weather>>;
+using LoadsType = nlohmann::json_abi_v3_11_2::basic_json<>;
 
 struct Settings {
     float latitude         = kUndefinedLatitude;
@@ -88,8 +105,26 @@ public:
     Handler& operator=(const Handler& other) = delete;
     ~Handler() = default;
 public:
-    void Request();
+    WeatherData* Request();
 private:
     std::filesystem::path config_path_;
     ConfigParser config_;
+};
+
+template<typename T>
+class WeatherValue {
+public:
+    std::optional<T> operator()(
+        const LoadsType& loads,
+        std::string_view variable,
+        size_t index
+    ) {
+        auto temp = loads["hourly"][variable][index];
+
+        if (temp.is_null()) {
+            return {};
+        }
+
+        return temp;
+    }
 };
