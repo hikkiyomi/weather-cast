@@ -6,19 +6,22 @@
 #include <nlohmann/json.hpp>
 
 #include <any>
-#include <filesystem>
 #include <cinttypes>
+#include <filesystem>
+#include <iostream>
 #include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-constexpr float            kUndefinedLatitude    = -100;
-constexpr float            kUndefinedLongitude   = -100;
-constexpr std::string_view kUndefinedCity        = "UndefinedCity";
-constexpr uint16_t         kDefaultForecastDays  = 4;
-constexpr uint32_t         kDoNotUpdateFrequency = 0;
+constexpr float    kUndefinedLatitude    = -100;
+constexpr float    kUndefinedLongitude   = -100;
+const std::string& kUndefinedCity        = "UndefinedCity";
+const std::string& kUndefinedCountry     = "UndefinedCountry";
+constexpr uint16_t kDefaultForecastDays  = 4;
+constexpr uint32_t kDoNotUpdateFrequency = 0;
+constexpr size_t   kDefaultCity          = 123456;
 
 struct Weather {
     std::optional<float> temperature;
@@ -34,12 +37,21 @@ struct Weather {
 using WeatherData = std::map<std::string, std::map<uint8_t, Weather>>;
 using LoadsType = nlohmann::json_abi_v3_11_2::basic_json<>;
 
+struct City {
+    std::string name;
+    std::string country;
+
+    City(const std::string& _name, const std::string& _country);
+
+    friend std::ostream& operator<<(std::ostream& stream, const City& name);
+};
+
 struct Settings {
-    float latitude         = kUndefinedLatitude;
-    float longitude        = kUndefinedLongitude;
-    std::string_view city  = kUndefinedCity;
-    uint16_t forecast_days = kDefaultForecastDays;
-    uint32_t update_freq   = kDoNotUpdateFrequency;
+    float latitude           = kUndefinedLatitude;
+    float longitude          = kUndefinedLongitude;
+    std::vector<City> cities = {};
+    uint16_t forecast_days   = kDefaultForecastDays;
+    uint32_t update_freq     = kDoNotUpdateFrequency;
 
     std::vector<std::string> weather_variables = {
         "temperature_2m", "apparent_temperature",
@@ -75,8 +87,17 @@ public:
         return *this;
     }
 
-    [[nodiscard]] inline std::string_view GetCity() const noexcept {
-        return settings_.city;
+    [[nodiscard]] inline const std::vector<City>& GetCities() const noexcept {
+        return settings_.cities;
+    }
+
+    [[nodiscard]] inline const City& GetCity(size_t index) const noexcept {
+        return settings_.cities[index];
+    }
+
+    inline ConfigParser& SetCityCountry(size_t index, std::string_view country) noexcept {
+        settings_.cities[index].country = country;
+        return *this;
     }
 
     [[nodiscard]] inline uint16_t GetForecastDays() const noexcept {
@@ -105,7 +126,11 @@ public:
     Handler& operator=(const Handler& other) = delete;
     ~Handler() = default;
 public:
-    WeatherData* Request();
+    WeatherData* Request(size_t city_index);
+    bool HasNext(size_t city_index);
+    bool HasPrev(size_t city_index);
+    void PrintCity(std::ostream& stream, size_t city_index);
+    uint32_t GetFrequency() const;
 private:
     std::filesystem::path config_path_;
     ConfigParser config_;

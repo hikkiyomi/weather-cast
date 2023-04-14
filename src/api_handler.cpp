@@ -5,6 +5,18 @@
 
 constexpr uint16_t kStatusOK = 200;
 
+std::map<size_t, std::map<std::string, std::any>> buffered_city_info;
+
+City::City(const std::string& _name, const std::string& _country)
+    : name(_name)
+    , country(_country)
+{}
+
+std::ostream& operator<<(std::ostream& stream, const City& city) {
+    stream << city.name << ", " << city.country;
+    return stream;
+}
+
 ConfigParser::ConfigParser(const std::filesystem::path& config_path)
     : parser_(omfl::parse(config_path))
 {
@@ -14,7 +26,7 @@ ConfigParser::ConfigParser(const std::filesystem::path& config_path)
 [[nodiscard]] bool CheckIfUndefinedPlace(const Settings& settings) noexcept {
     return settings.latitude == kUndefinedLatitude
         && settings.longitude == kUndefinedLongitude
-        && settings.city == kUndefinedCity;
+        && settings.cities.empty();
 }
 
 void ConfigParser::ParseConfig() {
@@ -27,11 +39,26 @@ void ConfigParser::ParseConfig() {
     } catch (const std::runtime_error&) {}
 
     try {
-        settings_.city = parser_.Get("city").AsString();
+        auto cities_array = parser_.Get("city");
+
+        for (size_t index = 0;; ++index) {
+            auto temp = cities_array[index];
+
+            if (temp.GetType() == omfl::Type::Undefined) {
+                break;
+            }
+
+            settings_.cities.push_back(
+                City(
+                    std::string(temp.AsString()),
+                    kUndefinedCountry
+                )
+            );
+        }
     } catch (const std::runtime_error&) {}
 
     try {
-        settings_.forecast_days = parser_.Get("days").AsInt();
+        settings_.forecast_days = std::max(1, std::min(16, parser_.Get("days").AsInt()));
     } catch (const std::runtime_error&) {}
     
     try {
@@ -41,10 +68,6 @@ void ConfigParser::ParseConfig() {
     if (CheckIfUndefinedPlace(settings_)) {
         throw std::runtime_error("No information about city is provided.");
     }
-
-    if (!(1 <= settings_.forecast_days && settings_.forecast_days <= 16)) {
-        throw std::runtime_error("Forecast days should be in range from 1 to 16.");
-    }
 }
 
 Handler::Handler(const std::filesystem::path& config_path)
@@ -52,20 +75,35 @@ Handler::Handler(const std::filesystem::path& config_path)
     , config_(ConfigParser(config_path))
 {}
 
-[[nodiscard]] bool RestoreNeeded(const ConfigParser& config) noexcept {
+[[nodiscard]] bool RestoreNeeded(const ConfigParser& config, size_t city_index) noexcept {
     return config.GetLatitude() == kUndefinedLatitude
-        || config.GetLongitude() == kUndefinedLongitude;
+        || config.GetLongitude() == kUndefinedLongitude
+        || config.GetCities().size() > 1
+        || config.GetCity(city_index).country == kUndefinedCountry;
 }
 
-void RestoreCoordinates(ConfigParser& config) {
+void RestoreCoordinatesBufferized(ConfigParser& config, size_t city_index) {
+    config
+        .SetLatitude(std::any_cast<float>(buffered_city_info[city_index]["latitude"]))
+        .SetLongitude(std::any_cast<float>(buffered_city_info[city_index]["longitude"]));
+}
+
+void RestoreCoordinates(ConfigParser& config, size_t city_index) {
     const static std::string api_key = "lQTzZriyKM8cFys/Sa20ug==feHpFj2EgiUdz8Ps";
     const static auto url = cpr::Url{"https://api.api-ninjas.com/v1/city"};
     const static auto header = cpr::Header{
         {"User-Agent", "BOT"},
         {"X-Api-Key", api_key}
     };
-    auto params = cpr::Parameters{{"name", std::string(config.GetCity())}};
-    
+
+    assert(city_index < config.GetCities().size());
+
+    if (buffered_city_info.count(city_index)) {
+        RestoreCoordinatesBufferized(config, city_index);
+        return;
+    }
+
+    auto params = cpr::Parameters{{"name", config.GetCity(city_index).name}};
     auto response = cpr::Get(url, params, header);
 
     while (response.status_code != kStatusOK) {
@@ -78,7 +116,13 @@ void RestoreCoordinates(ConfigParser& config) {
         throw std::runtime_error("You might have provided a non-existing city. Please, fix.");
     }
 
-    config.SetLatitude(loads[0]["latitude"]).SetLongitude(loads[0]["longitude"]);
+    config
+        .SetLatitude(loads[0]["latitude"])
+        .SetLongitude(loads[0]["longitude"])
+        .SetCityCountry(city_index, std::string(loads[0]["country"]));
+
+    buffered_city_info[city_index]["latitude"] = loads[0]["latitude"].get<float>();
+    buffered_city_info[city_index]["longitude"] = loads[0]["longitude"].get<float>();
 }
 
 void FormParameters(const ConfigParser& config, cpr::Parameters& params) {
@@ -143,9 +187,9 @@ WeatherData* ParseLoads(const LoadsType& loads) {
     return weather;
 }
 
-WeatherData* Handler::Request() {
-    if (RestoreNeeded(config_)) {
-        RestoreCoordinates(config_);
+WeatherData* Handler::Request(size_t city_index) {
+    if (RestoreNeeded(config_, city_index)) {
+        RestoreCoordinates(config_, city_index);
     }
 
     const static auto url = cpr::Url{"https://api.open-meteo.com/v1/forecast"};
@@ -168,4 +212,20 @@ WeatherData* Handler::Request() {
     }
 
     return ParseLoads(loads);
+}
+
+bool Handler::HasNext(size_t city_index) {
+    return city_index < config_.GetCities().size() - 1;
+}
+
+bool Handler::HasPrev(size_t city_index) {
+    return city_index >= 1;
+}
+
+void Handler::PrintCity(std::ostream& stream, size_t city_index) {
+    stream << config_.GetCity(city_index);
+}
+
+uint32_t Handler::GetFrequency() const {
+    return config_.GetUpdateFrequency();
 }
