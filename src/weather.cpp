@@ -37,8 +37,6 @@ void Forecaster::ChangeConfig(const std::filesystem::path& config_path) {
 WeatherData* Forecaster::GetData(size_t index) {
     if (!bufferized_data.count(index)) {
         bufferized_data[index] = handler_->Request(index);
-    } else {
-
     }
 
     return bufferized_data[index];
