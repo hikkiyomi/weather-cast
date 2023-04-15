@@ -20,6 +20,7 @@ constexpr float    kUndefinedLongitude   = -100;
 const std::string& kUndefinedCity        = "UndefinedCity";
 const std::string& kUndefinedCountry     = "UndefinedCountry";
 constexpr uint16_t kDefaultForecastDays  = 4;
+constexpr uint16_t kForecastDaysRequest  = 16;
 constexpr uint32_t kDoNotUpdateFrequency = 0;
 constexpr size_t   kDefaultCity          = 123456;
 
@@ -130,7 +131,9 @@ public:
     bool HasNext(size_t city_index);
     bool HasPrev(size_t city_index);
     void PrintCity(std::ostream& stream, size_t city_index);
+public:
     uint32_t GetFrequency() const;
+    uint16_t GetForecastDays() const;
 private:
     std::filesystem::path config_path_;
     ConfigParser config_;

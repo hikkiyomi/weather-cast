@@ -25,12 +25,16 @@ FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download
 
 FetchContent_MakeAvailable(cpr json)
 
+set(FORT_ENABLE_TESTING OFF CACHE INTERNAL "")
+
+add_subdirectory(third-party/libfort)
+
 add_library(handler include/api_handler.h src/api_handler.cpp)
 add_library(weather include/weather.h src/weather.cpp)
 
 target_link_libraries(handler PRIVATE cpr::cpr nlohmann_json::nlohmann_json ITMLparse)
-target_link_libraries(weather PRIVATE handler cpr::cpr nlohmann_json::nlohmann_json ITMLparse)
-target_link_libraries(forecaster PRIVATE cpr::cpr nlohmann_json::nlohmann_json ITMLparse handler weather)
+target_link_libraries(weather PRIVATE handler cpr::cpr nlohmann_json::nlohmann_json ITMLparse fort)
+target_link_libraries(forecaster PRIVATE cpr::cpr nlohmann_json::nlohmann_json ITMLparse handler weather fort)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

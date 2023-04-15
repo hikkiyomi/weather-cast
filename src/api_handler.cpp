@@ -128,7 +128,7 @@ void RestoreCoordinates(ConfigParser& config, size_t city_index) {
 void FormParameters(const ConfigParser& config, cpr::Parameters& params) {
     params.Add(cpr::Parameter{"latitude", std::to_string(config.GetLatitude())});
     params.Add(cpr::Parameter{"longitude", std::to_string(config.GetLongitude())});
-    params.Add(cpr::Parameter{"forecast_days", std::to_string(config.GetForecastDays())});
+    params.Add(cpr::Parameter{"forecast_days", std::to_string(kForecastDaysRequest)});
     
     std::string hourly_info;
     const auto& full_info = config.GetWeatherVariables();
@@ -228,4 +228,8 @@ void Handler::PrintCity(std::ostream& stream, size_t city_index) {
 
 uint32_t Handler::GetFrequency() const {
     return config_.GetUpdateFrequency();
+}
+
+uint16_t Handler::GetForecastDays() const {
+    return config_.GetForecastDays();
 }
