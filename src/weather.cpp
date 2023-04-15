@@ -3,6 +3,7 @@
 #include <conio.h>
 #include <windows.h>
 
+#include <iomanip>
 #include <iostream>
 
 constexpr char kEscapeKey = 0x1B;
@@ -260,7 +261,7 @@ void Draw(Forecaster* forecaster) {
         forecaster->handler_->PrintCity(std::cout, forecaster->city_shown_);
         std::cout << "\n\n\n";
 
-        std::cout << "Time now: " << current_hour << ":" << current_minute << " (GMT+3)\n";
+        std::cout << "Time now: " << std::fixed << std::setw(2) << std::setfill('0') << current_hour << ":" << current_minute << " (GMT+3)\n";
         std::cout << FormCell(api_response.begin()->second, current_hour) << "\n\n";
 
         size_t drawn = 0;
